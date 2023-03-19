@@ -219,14 +219,14 @@ function Timeline:render()
 	ass:rect(fax, fay, fbx, fby, {opacity = options.timeline_opacity})
 
 	-- Uncached ranges
-	local buffered_time = nil
+	local buffered_playtime = nil
 	if state.uncached_ranges then
 		local opts = {size = 80, anchor_y = fby}
 		local texture_char = visibility > 0 and 'b' or 'a'
 		local offset = opts.size / (visibility > 0 and 24 or 28)
 		for _, range in ipairs(state.uncached_ranges) do
-			if not buffered_time and (range[1] > state.time or range[2] > state.time) then
-				buffered_time = range[1] - state.time
+			if not buffered_playtime and (range[1] > state.time or range[2] > state.time) then
+				buffered_playtime = (range[1] - state.time) / (state.speed or 1)
 			end
 			if options.timeline_cache then
 				local ax = range[1] < 0.5 and bax or math.floor(t2x(range[1]))
@@ -298,8 +298,30 @@ function Timeline:render()
 				end
 			end
 
-			if state.ab_loop_a and state.ab_loop_a > 0 then draw_chapter(state.ab_loop_a, diamond_radius) end
-			if state.ab_loop_b and state.ab_loop_b > 0 then draw_chapter(state.ab_loop_b, diamond_radius) end
+			-- A-B loop indicators
+			local has_a, has_b = state.ab_loop_a and state.ab_loop_a >= 0, state.ab_loop_b and state.ab_loop_b > 0
+			local ab_radius = round(math.min(math.max(8, foreground_size * 0.25), foreground_size))
+
+			---@param time number
+			---@param kind 'a'|'b'
+			local function draw_ab_indicator(time, kind)
+				local x = t2x(time)
+				ass:new_event()
+				ass:append(string.format(
+					'{\\pos(0,0)\\rDefault\\an7\\blur0\\yshad0.01\\bord%f\\1c&H%s\\3c&H%s\\4c&H%s\\1a&H%X&\\3a&H00&\\4a&H00&}',
+					diamond_border, fg, bg, bg, opacity_to_alpha(options.timeline_opacity * options.timeline_chapters_opacity)
+				))
+				ass:draw_start()
+				ass:move_to(x, fby - ab_radius)
+				if kind == 'b' then ass:line_to(x + 3, fby - ab_radius) end
+				ass:line_to(x + (kind == 'a' and 0 or ab_radius), fby)
+				ass:line_to(x - (kind == 'b' and 0 or ab_radius), fby)
+				if kind == 'a' then ass:line_to(x - 3, fby - ab_radius) end
+				ass:draw_stop()
+			end
+
+			if has_a then draw_ab_indicator(state.ab_loop_a, 'a') end
+			if has_b then draw_ab_indicator(state.ab_loop_b, 'b') end
 		end
 	end
 
@@ -316,13 +338,15 @@ function Timeline:render()
 	if text_opacity > 0 then
 		local time_opts = {size = self.font_size, opacity = text_opacity, border = 2}
 		-- Upcoming cache time
-		if buffered_time and options.buffered_time_threshold > 0 and buffered_time < options.buffered_time_threshold then
+		if buffered_playtime and options.buffered_time_threshold > 0
+			and buffered_playtime < options.buffered_time_threshold then
 			local x, align = fbx + 5, 4
 			local cache_opts = {size = self.font_size * 0.8, opacity = text_opacity * 0.6, border = 1}
-			local human = round(math.max(buffered_time, 0)) .. 's'
+			local human = round(math.max(buffered_playtime, 0)) .. 's'
 			local width = text_width(human, cache_opts)
-			local time_width = text_width('00:00:00', time_opts)
-			local min_x, max_x = bax + spacing + 5 + time_width, bbx - spacing - 5 - time_width
+			local time_width = timestamp_width(state.time_human, time_opts)
+			local time_width_end = timestamp_width(state.destination_time_human, time_opts)
+			local min_x, max_x = bax + spacing + 5 + time_width, bbx - spacing - 5 - time_width_end
 			if x < min_x then x = min_x elseif x + width > max_x then x, align = max_x, 6 end
 			draw_timeline_text(x, fcy, align, human, cache_opts)
 		end
@@ -333,8 +357,8 @@ function Timeline:render()
 		end
 
 		-- End time
-		if state.duration_or_remaining_time_human then
-			draw_timeline_text(bbx - spacing, fcy, 6, state.duration_or_remaining_time_human, time_opts)
+		if state.destination_time_human then
+			draw_timeline_text(bbx - spacing, fcy, 6, state.destination_time_human, time_opts)
 		end
 	end
 
@@ -354,8 +378,9 @@ function Timeline:render()
 		-- Timestamp
 		local offset = #state.chapters > 0 and 10 or 4
 		local opts = {size = self.font_size, offset = offset}
-		opts.width_overwrite = text_width('00:00:00', opts)
-		ass:tooltip(tooltip_anchor, format_time(hovered_seconds), opts)
+		local hovered_time_human = format_time(hovered_seconds, state.duration)
+		opts.width_overwrite = timestamp_width(hovered_time_human, opts)
+		ass:tooltip(tooltip_anchor, hovered_time_human, opts)
 		tooltip_anchor.ay = tooltip_anchor.ay - self.font_size - offset
 
 		-- Thumbnail
