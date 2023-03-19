@@ -4,17 +4,17 @@ local version = '2.1'
 drpcStatus = 'active' -- Don't change this
 
 local drpc_opts = {
-	playText = "Watching",
+	playText = "Sedang Nonton",
 	-- Set Playing text for video
-	playStreamText = "Streaming",
+	playStreamText = "Siaran Langsung",
 	-- Set Playing text for streaming
-	playMusicText = "Listening",
+	playMusicText = "Mendengar",
 	-- Set Playing text for Music
-	playOtherText = "Viewing",
+	playOtherText = "Melihat",
 	-- Set Playing text for image or something else
-	pausedText = "Paused",
+	pausedText = "Jeda",
 	-- Set Paused state text
-	idlingText = "Idling",
+	idlingText = "Nganggur",
 	-- Set Idling state text
 
 	useMediaTitle = "no", -- "yes" or "no"
