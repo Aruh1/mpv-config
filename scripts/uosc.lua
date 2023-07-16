@@ -109,6 +109,7 @@ defaults = {
 	adjust_osd_margins = true,
 	chapter_ranges = 'openings:30abf964,endings:30abf964,ads:c54e4e80',
 	chapter_range_patterns = 'openings:オープニング;endings:エンディング',
+	languages = 'slang,en',
 }
 options = table_shallow_copy(defaults)
 opt.read_options(options, 'uosc')
@@ -131,37 +132,41 @@ if options.autoload then mp.commandv('set', 'keep-open-pause', 'no') end
 fg, bg = serialize_rgba(options.foreground).color, serialize_rgba(options.background).color
 fgt, bgt = serialize_rgba(options.foreground_text).color, serialize_rgba(options.background_text).color
 
+--[[ INTERNATIONALIZATION ]]
+local intl = require('uosc_shared/lib/intl')
+t = intl.t
+
 --[[ CONFIG ]]
 
 function create_default_menu()
 	return {
-		{title = 'Subtitles', value = 'script-binding uosc/subtitles'},
-		{title = 'Audio tracks', value = 'script-binding uosc/audio'},
-		{title = 'Stream quality', value = 'script-binding uosc/stream-quality'},
-		{title = 'Playlist', value = 'script-binding uosc/items'},
-		{title = 'Chapters', value = 'script-binding uosc/chapters'},
-		{title = 'Navigation', items = {
-			{title = 'Next', hint = 'playlist or file', value = 'script-binding uosc/next'},
-			{title = 'Prev', hint = 'playlist or file', value = 'script-binding uosc/prev'},
-			{title = 'Delete file & Next', value = 'script-binding uosc/delete-file-next'},
-			{title = 'Delete file & Prev', value = 'script-binding uosc/delete-file-prev'},
-			{title = 'Delete file & Quit', value = 'script-binding uosc/delete-file-quit'},
-			{title = 'Open file', value = 'script-binding uosc/open-file'},
+		{title = t('Subtitles'), value = 'script-binding uosc/subtitles'},
+		{title = t('Audio tracks'), value = 'script-binding uosc/audio'},
+		{title = t('Stream quality'), value = 'script-binding uosc/stream-quality'},
+		{title = t('Playlist'), value = 'script-binding uosc/items'},
+		{title = t('Chapters'), value = 'script-binding uosc/chapters'},
+		{title = t('Navigation'), items = {
+			{title = t('Next'), hint = t('playlist or file'), value = 'script-binding uosc/next'},
+			{title = t('Prev'), hint = t('playlist or file'), value = 'script-binding uosc/prev'},
+			{title = t('Delete file & Next'), value = 'script-binding uosc/delete-file-next'},
+			{title = t('Delete file & Prev'), value = 'script-binding uosc/delete-file-prev'},
+			{title = t('Delete file & Quit'), value = 'script-binding uosc/delete-file-quit'},
+			{title = t('Open file'), value = 'script-binding uosc/open-file'},
 		},},
-		{title = 'Utils', items = {
-			{title = 'Aspect ratio', items = {
-				{title = 'Default', value = 'set video-aspect-override "-1"'},
+		{title = t('Utils'), items = {
+			{title = t('Aspect ratio'), items = {
+				{title = t('Default'), value = 'set video-aspect-override "-1"'},
 				{title = '16:9', value = 'set video-aspect-override "16:9"'},
 				{title = '4:3', value = 'set video-aspect-override "4:3"'},
 				{title = '2.35:1', value = 'set video-aspect-override "2.35:1"'},
 			},},
-			{title = 'Audio devices', value = 'script-binding uosc/audio-device'},
-			{title = 'Editions', value = 'script-binding uosc/editions'},
-			{title = 'Screenshot', value = 'async screenshot'},
-			{title = 'Show in directory', value = 'script-binding uosc/show-in-directory'},
-			{title = 'Open config folder', value = 'script-binding uosc/open-config-directory'},
+			{title = t('Audio devices'), value = 'script-binding uosc/audio-device'},
+			{title = t('Editions'), value = 'script-binding uosc/editions'},
+			{title = t('Screenshot'), value = 'async screenshot'},
+			{title = t('Show in directory'), value = 'script-binding uosc/show-in-directory'},
+			{title = t('Open config folder'), value = 'script-binding uosc/open-config-directory'},
 		},},
-		{title = 'Quit', value = 'quit'},
+		{title = t('Quit'), value = 'quit'},
 	}
 end
 
@@ -313,10 +318,14 @@ cursor = {
 	on_primary_up = nil,
 	on_wheel_down = nil,
 	on_wheel_up = nil,
+	allow_dragging = false,
+	history = {}, -- {x, y}[] history
+	history_size = 10,
 	-- Called at the beginning of each render
 	reset_handlers = function()
 		cursor.on_primary_down, cursor.on_primary_up = nil, nil
 		cursor.on_wheel_down, cursor.on_wheel_up = nil, nil
+		cursor.allow_dragging = false
 	end,
 	-- Enables pointer key group captures needed by handlers (called at the end of each render)
 	mbtn_left_enabled = nil,
@@ -325,7 +334,8 @@ cursor = {
 		local enable_mbtn_left = (cursor.on_primary_down or cursor.on_primary_up) ~= nil
 		local enable_wheel = (cursor.on_wheel_down or cursor.on_wheel_up) ~= nil
 		if enable_mbtn_left ~= cursor.mbtn_left_enabled then
-			mp[(enable_mbtn_left and 'enable' or 'disable') .. '_key_bindings']('mbtn_left')
+			local flags = cursor.allow_dragging and 'allow-vo-dragging' or nil
+			mp[(enable_mbtn_left and 'enable' or 'disable') .. '_key_bindings']('mbtn_left', flags)
 			cursor.mbtn_left_enabled = enable_mbtn_left
 		end
 		if enable_wheel ~= cursor.wheel_enabled then
@@ -347,6 +357,17 @@ cursor = {
 			cursor.autohide_timer:kill()
 			cursor.autohide_timer:resume()
 		end
+	end,
+	-- Calculates distance in which cursor reaches rectangle if it continues moving in the same path.
+	-- Returns `nil` if cursor is not moving towards the rectangle.
+	direction_to_rectangle_distance = function(rect)
+		if cursor.hidden or not cursor.history[1] then
+			return false
+		end
+
+		local prev_x, prev_y = cursor.history[1][1], cursor.history[1][2]
+		local end_x, end_y = cursor.x + (cursor.x - prev_x) * 1e10, cursor.y + (cursor.y - prev_y) * 1e10
+		return get_ray_to_rectangle_distance(cursor.x, cursor.y, end_x, end_y, rect)
 	end
 }
 state = {
@@ -363,6 +384,7 @@ state = {
 	end)(),
 	cwd = mp.get_property('working-directory'),
 	path = nil, -- current file path or URL
+	history = {}, -- history of last played files stored as full paths
 	title = nil,
 	alt_title = nil,
 	time = nil, -- current media playback time
@@ -533,18 +555,24 @@ function update_cursor_position(x, y)
 		else x, y = INFINITY, INFINITY end
 	end
 
-	-- add 0.5 to be in the middle of the pixel
+	-- Add 0.5 to be in the middle of the pixel
 	cursor.x, cursor.y = (x + 0.5) / display.scale_x, (y + 0.5) / display.scale_y
 
 	if old_x ~= cursor.x or old_y ~= cursor.y then
 		Elements:update_proximities()
 
 		if cursor.x == INFINITY or cursor.y == INFINITY then
-			cursor.hidden = true
+			cursor.hidden, cursor.history = true, {}
 			Elements:trigger('global_mouse_leave')
 		elseif cursor.hidden then
-			cursor.hidden = false
+			cursor.hidden, cursor.history = false, {}
 			Elements:trigger('global_mouse_enter')
+		else
+			-- Update cursor history
+			for i = 1, cursor.history_size - 1, 1 do
+				cursor.history[i] = cursor.history[i + 1]
+			end
+			cursor.history[cursor.history_size] = {x, y}
 		end
 
 		Elements:proximity_trigger('mouse_move')
@@ -612,7 +640,7 @@ end
 function select_current_chapter()
 	local current_chapter
 	if state.time and state.chapters then
-		_, current_chapter = itable_find(state.chapters, function(c) return state.time >= c.time end, true)
+		_, current_chapter = itable_find(state.chapters, function(c) return state.time >= c.time end, #state.chapters, 1)
 	end
 	set_state('current_chapter', current_chapter)
 end
@@ -653,7 +681,10 @@ end
 mp.observe_property('mouse-pos', 'native', handle_mouse_pos)
 mp.observe_property('osc', 'bool', function(name, value) if value == true then mp.set_property('osc', 'no') end end)
 mp.register_event('file-loaded', function()
-	set_state('path', normalize_path(mp.get_property_native('path')))
+	local path = normalize_path(mp.get_property_native('path'))
+	itable_delete_value(state.history, path)
+	state.history[#state.history + 1] = path
+	set_state('path', path)
 	Elements:flash({'top_bar'})
 end)
 mp.register_event('end-file', function(event)
@@ -921,21 +952,21 @@ for _, loader in ipairs(track_loaders) do
 		open_file_navigation_menu(
 			path,
 			function(path) mp.commandv(loader.prop .. '-add', path) end,
-			{type = menu_type, title = 'Load ' .. loader.name, allowed_types = loader.allowed_types}
+			{type = menu_type, title = t('Load ' .. loader.name), allowed_types = loader.allowed_types}
 		)
 	end)
 end
 bind_command('subtitles', create_select_tracklist_type_menu_opener(
-	'Subtitles', 'sub', 'sid', 'script-binding uosc/load-subtitles'
+	t('Subtitles'), 'sub', 'sid', 'script-binding uosc/load-subtitles'
 ))
 bind_command('audio', create_select_tracklist_type_menu_opener(
-	'Audio', 'audio', 'aid', 'script-binding uosc/load-audio'
+	t('Audio'), 'audio', 'aid', 'script-binding uosc/load-audio'
 ))
 bind_command('video', create_select_tracklist_type_menu_opener(
-	'Video', 'video', 'vid', 'script-binding uosc/load-video'
+	t('Video'), 'video', 'vid', 'script-binding uosc/load-video'
 ))
 bind_command('playlist', create_self_updating_menu_opener({
-	title = 'Playlist',
+	title = t('Playlist'),
 	type = 'playlist',
 	list_prop = 'playlist',
 	serializer = function(playlist)
@@ -959,7 +990,7 @@ bind_command('playlist', create_self_updating_menu_opener({
 	on_delete_item = function(index) mp.commandv('playlist-remove', tostring(index - 1)) end,
 }))
 bind_command('chapters', create_self_updating_menu_opener({
-	title = 'Chapters',
+	title = t('Chapters'),
 	type = 'chapters',
 	list_prop = 'chapter-list',
 	active_prop = 'chapter',
@@ -979,16 +1010,17 @@ bind_command('chapters', create_self_updating_menu_opener({
 	on_select = function(index) mp.commandv('set', 'chapter', tostring(index - 1)) end,
 }))
 bind_command('editions', create_self_updating_menu_opener({
-	title = 'Editions',
+	title = t('Editions'),
 	type = 'editions',
 	list_prop = 'edition-list',
 	active_prop = 'current-edition',
 	serializer = function(editions, current_id)
 		local items = {}
 		for _, edition in ipairs(editions or {}) do
+			local edition_id_1 = tostring(edition.id + 1)
 			items[#items + 1] = {
-				title = edition.title or 'Edition',
-				hint = tostring(edition.id + 1),
+				title = edition.title or t('Edition %s', edition_id_1),
+				hint = edition_id_1,
 				value = edition.id,
 				active = edition.id == current_id,
 			}
@@ -1025,7 +1057,7 @@ bind_command('stream-quality', function()
 		items[#items + 1] = {title = height .. 'p', value = format, active = format == ytdl_format}
 	end
 
-	Menu:open({type = 'stream-quality', title = 'Stream quality', items = items}, function(format)
+	Menu:open({type = 'stream-quality', title = t('Stream quality'), items = items}, function(format)
 		mp.set_property('ytdl-format', format)
 
 		-- Reload the video to apply new format
@@ -1155,7 +1187,7 @@ bind_command('delete-file-quit', function()
 	mp.command('quit')
 end)
 bind_command('audio-device', create_self_updating_menu_opener({
-	title = 'Audio devices',
+	title = t('Audio devices'),
 	type = 'audio-device-list',
 	list_prop = 'audio-device-list',
 	active_prop = 'audio-device',
@@ -1168,7 +1200,7 @@ bind_command('audio-device', create_self_updating_menu_opener({
 				local hint = string.match(device.name, ao .. '/(.+)')
 				if not hint then hint = device.name end
 				items[#items + 1] = {
-					title = device.description,
+					title = device.description:sub(1, 7) == 'Default' and t('Default %s', device.description:sub(9)) or t(device.description),
 					hint = hint,
 					active = device.name == current_device,
 					value = device.name,
