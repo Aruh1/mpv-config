@@ -1,4 +1,4 @@
--function chapter_seek(direction)
+function chapter_seek(direction)
     local chapters = mp.get_property_number("chapters")
     if chapters == nil then chapters = 0 end
     local chapter  = mp.get_property_number("chapter")
