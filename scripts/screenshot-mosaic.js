@@ -9,7 +9,7 @@
  *
  * Created by: noaione
  * License: MIT
- * Version: 2024.01.15.1
+ * Version: 2024.02.23.1
  */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -481,7 +481,7 @@ function screenshotCycles(startTime, timeStep, screenshotDir, options, callback)
                 }
                 // if counter is equal to totalImages, we are done
                 if (counter >= totalImages) {
-                    callback(true, undefined, screenshots);
+                    callback(true, undefined, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
                     return;
                 }
                 // if not, loop again.
