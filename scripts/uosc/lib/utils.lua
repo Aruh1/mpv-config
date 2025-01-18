@@ -649,6 +649,7 @@ function serialize_chapter_ranges(normalized_chapters)
 			patterns = {
 				'^op ', '^op$', ' op$',
 				'^opening$', ' opening$',
+				'^lagu pembuka ', '^lagu pembuka$', ' lagu pembuka$'
 			},
 			requires_next_chapter = true,
 		},
@@ -657,6 +658,8 @@ function serialize_chapter_ranges(normalized_chapters)
 			patterns = {
 				'^intro$', ' intro$',
 				'^avant$', '^prologue$',
+				'^sebelumnya$', ' sebelumnya$',
+				'^prolog$', ' prolog$'
 			},
 			requires_next_chapter = true,
 		},
@@ -665,6 +668,7 @@ function serialize_chapter_ranges(normalized_chapters)
 			patterns = {
 				'^ed ', '^ed$', ' ed$',
 				'^ending ', '^ending$', ' ending$',
+				'^lagu penutup ', '^lagu penutup$', ' lagu penutup$'
 			},
 		},
 		{
@@ -673,6 +677,8 @@ function serialize_chapter_ranges(normalized_chapters)
 				'^outro$', ' outro$',
 				'^closing$', '^closing ',
 				'^preview$', '^pv$',
+				'^selanjutnya$', ' selanjutnya$',
+				'^epilog$', ' epilog$'
 			},
 		},
 	}
