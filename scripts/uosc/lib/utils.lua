@@ -649,7 +649,6 @@ function serialize_chapter_ranges(normalized_chapters)
 			patterns = {
 				'^op ', '^op$', ' op$',
 				'^opening$', ' opening$',
-				'^lagu pembuka ', '^lagu pembuka$', ' lagu pembuka$'
 			},
 			requires_next_chapter = true,
 		},
@@ -658,8 +657,6 @@ function serialize_chapter_ranges(normalized_chapters)
 			patterns = {
 				'^intro$', ' intro$',
 				'^avant$', '^prologue$',
-				'^sebelumnya$', ' sebelumnya$',
-				'^prolog$', ' prolog$'
 			},
 			requires_next_chapter = true,
 		},
@@ -668,7 +665,6 @@ function serialize_chapter_ranges(normalized_chapters)
 			patterns = {
 				'^ed ', '^ed$', ' ed$',
 				'^ending ', '^ending$', ' ending$',
-				'^lagu penutup ', '^lagu penutup$', ' lagu penutup$'
 			},
 		},
 		{
@@ -677,8 +673,6 @@ function serialize_chapter_ranges(normalized_chapters)
 				'^outro$', ' outro$',
 				'^closing$', '^closing ',
 				'^preview$', '^pv$',
-				'^selanjutnya$', ' selanjutnya$',
-				'^epilog$', ' epilog$'
 			},
 		},
 	}
@@ -893,7 +887,8 @@ end
 ---@param payload any
 ---@return string|nil payload String that was copied to clipboard.
 function set_clipboard(payload)
-	local err, data = call_ziggy({'set-clipboard', tostring(payload)})
+	payload = tostring(payload)
+	local err, data = call_ziggy({'set-clipboard', payload})
 	if err then
 		mp.commandv('show-text', 'Set clipboard error. See console for details.')
 		msg.error(err)
