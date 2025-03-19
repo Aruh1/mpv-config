@@ -14,11 +14,11 @@ this.is_wayland = function()
 end
 
 this.is_win = function()
-    return mp.get_property('options/vo-mmcss-profile') ~= nil
+    return mp.get_property("platform") == "windows"
 end
 
 this.is_mac = function()
-    return mp.get_property('options/macos-force-dedicated-gpu') ~= nil
+    return mp.get_property("platform") == "darwin"
 end
 
 this.notify = function(message, level, duration)
@@ -71,6 +71,27 @@ this.strip = function(str)
     return str:gsub("^%s*(.-)%s*$", "%1")
 end
 
+this.two_digit = function(num)
+    return string.format("%02d", num)
+end
+
+this.twelve_hour = function(num)
+  local sign = "pm"
+  local hour = num
+
+  if num > 12 then
+      hour = hour - 12
+  else
+      sign = "am"
+  end
+
+  return { sign = sign, hour = hour }
+end
+
+this.expand_path = function (str)
+    return mp.command_native({"expand-path", str})
+end
+
 this.human_readable_time = function(seconds)
     if type(seconds) ~= 'number' or seconds < 0 then
         return 'empty'
@@ -102,6 +123,19 @@ this.quote_if_necessary = function(args)
         end
     end
     return ret
+end
+
+this.query_xdg_user_dir = function(name)
+    local r = this.subprocess({ "xdg-user-dir", name })
+    if r.status == 0 then
+        return this.strip(r.stdout)
+    end
+    return nil
+end
+
+this.query_user_home_dir = function()
+    --- "USERPROFILE" is used on ReactOS and other Windows-like systems.
+    return os.getenv("HOME") or os.getenv("USERPROFILE")
 end
 
 return this

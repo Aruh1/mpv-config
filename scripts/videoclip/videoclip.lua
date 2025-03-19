@@ -60,6 +60,11 @@ local config = {
     -- Determines expire time of files uploaded to litterbox
     litterbox_expire = '72h', -- 1h, 12h, 24h, 72h
     sub_font = 'Noto Sans CJK JP',
+    -- Filename format
+    -- Available tags: %n = filename, %t = title, %s = start, %e = end, %d = duration,
+    --                 %Y = year, %M = months, %D = day, %H = hours (24), %I = hours (12),
+    --                 %P = am/pm %N = minutes, %S = seconds
+    filename_template='%n_%s-%e',
 }
 
 mpopt.read_options(config, NAME)
