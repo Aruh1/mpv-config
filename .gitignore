@@ -1,2 +1,3 @@
 /screenshot-mosaic
-*.py
+__pycache__
+.vsjet
