@@ -1,8 +1,7 @@
-from vsdenoise import knl_means_cl, ChannelMode
+from vsdenoise import nl_means
 from vsrgtools import contrasharpening
 
-
-den = knl_means_cl(video_in, strength=1.25, channels=ChannelMode.LUMA)  # type:ignore
+den = nl_means(video_in, h=1.25, planes=0)  # type:ignore
 csharp = contrasharpening(den, video_in)  # type:ignore
 
 csharp.set_output()

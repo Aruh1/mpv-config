@@ -24,7 +24,10 @@ def deinterlace(clip: vs.VideoNode, tff: bool = True) -> vs.VideoNode:
 
     It is recommended you use vsrepo <https://github.com/vapoursynth/vsrepo> to download these if possible.
     """
-    def _deinterlace(n: int, f: vs.VideoFrame, clip: vs.VideoNode, nn3: vs.VideoNode) -> vs.VideoNode:
+
+    def _deinterlace(
+        n: int, f: vs.VideoFrame, clip: vs.VideoNode, nn3: vs.VideoNode
+    ) -> vs.VideoNode:
         """Only run and apply nnedi3 when the frame demands it"""
         return nn3 if get_prop(f, "_Combed", int) > 0 else clip
 
@@ -35,8 +38,14 @@ def deinterlace(clip: vs.VideoNode, tff: bool = True) -> vs.VideoNode:
     return core.std.FrameEval(vfm, partial(_deinterlace, clip=vfm, nn3=nn3), vfm)
 
 
-def warpsharp(clip: vs.VideoNode, thresh: int = 128, blur: int = 3,
-              type: int = 1, depth: int = 8, darken_strength: int = 24) -> vs.VideoNode:
+def warpsharp(
+    clip: vs.VideoNode,
+    thresh: int = 128,
+    blur: int = 3,
+    type: int = 1,
+    depth: int = 8,
+    darken_strength: int = 24,
+) -> vs.VideoNode:
     """
     Experimental script for sharpening poorly blurred/starved video.
 

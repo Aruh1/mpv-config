@@ -3,14 +3,22 @@ from vstools import depth, get_depth, scale_value, vs
 core = vs.core
 
 
-def fix_colorspace(clip: vs.VideoNode, csp: int = 1, actual_csp: int = 6) -> vs.VideoNode:
+def fix_colorspace(
+    clip: vs.VideoNode, csp: int = 1, actual_csp: int = 6
+) -> vs.VideoNode:
     """
     Fix wrongly tagged colorspaces.
 
     See: https://silentaperture.gitlab.io/mdbook-guide/filtering/detinting.html#improper-color-matrix
     """
-    clip = clip.resize.Bicubic(matrix_in=csp, transfer_in=csp, primaries_in=csp,
-                               matrix=actual_csp, transfer=actual_csp, primaries=actual_csp)
+    clip = clip.resize.Bicubic(
+        matrix_in=csp,
+        transfer_in=csp,
+        primaries_in=csp,
+        matrix=actual_csp,
+        transfer=actual_csp,
+        primaries=actual_csp,
+    )
     return clip.std.SetFrameProps(_Matrix=csp, _Transfer=csp, _Primaries=csp)
 
 
@@ -40,9 +48,11 @@ def fix_lvls(clip: vs.VideoNode) -> vs.VideoNode:
 
     clip = clip.std.Levels(
         gamma=0.88,
-        min_in=scale_value(4096, 16, 32), max_in=scale_value(60160, 16, 32),
-        min_out=scale_value(4096, 16, 32), max_out=scale_value(60160, 16, 32),
-        planes=0
+        min_in=scale_value(4096, 16, 32),
+        max_in=scale_value(60160, 16, 32),
+        min_out=scale_value(4096, 16, 32),
+        max_out=scale_value(60160, 16, 32),
+        planes=0,
     )
 
     return depth(clip, bits)

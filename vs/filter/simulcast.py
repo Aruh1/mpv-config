@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from vsdeband import F3kdb, Placebo, adaptive_grain, deband_detail_mask
+from vodesfunc import adaptive_grain
+from vsdeband import deband_detail_mask, f3k_deband, placebo_deband
 from vstools import core, depth, get_depth
 
 """
@@ -31,10 +32,10 @@ if video_in_dh <= 810:  # type:ignore
 
 vid = depth(video_in, 16)  # type:ignore
 
-detail_mask = deband_detail_mask(vid, brz=(int(0.045, * 255) << 8, int(0.06, * 255) << 8))
+detail_mask = deband_detail_mask(vid, brz=(int(0.045, *255) << 8, int(0.06, *255) << 8))
 
-deband_f3kdb = F3kdb.deband(vid, )
-deband_placebo = Placebo.deband(vid, **placebo_args)
+deband_f3kdb = f3k_deband(vid)
+deband_placebo = placebo_deband(vid, **placebo_args)
 deband = core.std.MaskedMerge(deband_placebo, deband_f3kdb, detail_mask)
 
 grain = adaptive_grain(deband, strength=list(grain_strength), luma_scaling=0)

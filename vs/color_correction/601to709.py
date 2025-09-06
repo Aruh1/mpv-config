@@ -4,7 +4,9 @@ import sys
 from pathlib import Path
 
 # This is hacky, but ya gotta do what you gotta do
-spec = importlib.util.spec_from_file_location("funcs", f"{Path(__file__).parents[1]}/funcs/__init__.py")
+spec = importlib.util.spec_from_file_location(
+    "funcs", f"{Path(__file__).parents[1]}/funcs/__init__.py"
+)
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
@@ -13,5 +15,5 @@ from funcs import colors
 
 g = globals()
 
-if 'video_in' in g:
-    colors.fix_colorspace(g['video_in'], 6, 1).set_output()
+if "video_in" in g:
+    colors.fix_colorspace(g["video_in"], 6, 1).set_output()

@@ -13,19 +13,26 @@ def get_scale(clip: vs.VideoNode) -> int:
     scale: int = 1
 
     match h:
-        case _ if h > 4000 and h <= 1400: scale = 4
-        case _ if h > 1400: scale = 2
-        case _: scale = 1
+        case _ if h > 4000 and h <= 1400:
+            scale = 4
+        case _ if h > 1400:
+            scale = 2
+        case _:
+            scale = 1
 
     return scale
 
 
 def assume_framerate(fps: float) -> Fraction | None:
-    match f'{fps:.3f}':
-        case '23.976': return Fraction(24000, 1001)
-        case '29.970': return Fraction(30000, 1001)
-        case '59.940': return Fraction(60000, 1001)
-        case _: return Fraction(0, 1)  # VapourSynth default
+    match f"{fps:.3f}":
+        case "23.976":
+            return Fraction(24000, 1001)
+        case "29.970":
+            return Fraction(30000, 1001)
+        case "59.940":
+            return Fraction(60000, 1001)
+        case _:
+            return Fraction(0, 1)  # VapourSynth default
 
 
 def video_props(clip: vs.VideoNode, globals: dict[str, Any]) -> vs.VideoNode:
@@ -61,17 +68,19 @@ def video_props(clip: vs.VideoNode, globals: dict[str, Any]) -> vs.VideoNode:
 
     # Dimensions (actual, DAR)
     props |= dict(
-        ClipWidth=clip.width, ClipHeight=clip.height,
-        DisplayWidth=globals['video_in_dw'], DisplayHeight=globals['video_in_dh']
+        ClipWidth=clip.width,
+        ClipHeight=clip.height,
+        DisplayWidth=globals["video_in_dw"],
+        DisplayHeight=globals["video_in_dh"],
     )
 
     # Framerate
-    fps = assume_framerate(globals['container_fps'])
+    fps = assume_framerate(globals["container_fps"])
     if fps:
         props |= dict(
             FPS_ContainerDen=fps.denominator,
             FPS_ContainerNum=fps.numerator,
-            FPS_Display=globals['display_fps']
+            FPS_Display=globals["display_fps"],
         )
 
     # Matrices
@@ -79,18 +88,24 @@ def video_props(clip: vs.VideoNode, globals: dict[str, Any]) -> vs.VideoNode:
     props |= dict(CPS_Matrix=csp, CPS_Transfer=csp, CPS_Primaries=csp)
 
     # format props
-    original_props = pformat({"VideoNode": '', '_P': dict(frame.props)}, sort_dicts=True)
-    props = pformat({"Mpv": '', '_P': props}, sort_dicts=True)  # type:ignore
+    original_props = pformat(
+        {"VideoNode": "", "_P": dict(frame.props)}, sort_dicts=True
+    )
+    props = pformat({"Mpv": "", "_P": props}, sort_dicts=True)  # type:ignore
 
-    if clip.height < 576:  # Dropping CoreInfo because text is waaay too cramped if I keep it
-        return clip \
-            .text.Text(original_props, alignment=9) \
-            .text.Text(props, alignment=3) \
-            .text.CoreInfo(alignment=1, scale=scale) \
+    if (
+        clip.height < 576
+    ):  # Dropping CoreInfo because text is waaay too cramped if I keep it
+        return (
+            clip.text.Text(original_props, alignment=9)
+            .text.Text(props, alignment=3)
+            .text.CoreInfo(alignment=1, scale=scale)
             .text.Text(disclaimer, alignment=7)
+        )
     else:
-        return clip \
-            .text.Text(original_props, alignment=9, scale=scale) \
-            .text.Text(props, alignment=3 if clip.height < 900 else 6, scale=scale) \
-            .text.CoreInfo(alignment=1, scale=scale) \
+        return (
+            clip.text.Text(original_props, alignment=9, scale=scale)
+            .text.Text(props, alignment=3 if clip.height < 900 else 6, scale=scale)
+            .text.CoreInfo(alignment=1, scale=scale)
             .text.Text(disclaimer, alignment=7, scale=scale)
+        )
