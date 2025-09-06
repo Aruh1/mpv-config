@@ -32,7 +32,7 @@ if video_in_dh <= 810:  # type:ignore
 
 vid = depth(video_in, 16)  # type:ignore
 
-detail_mask = deband_detail_mask(vid, brz=(int(0.045, *255) << 8, int(0.06, *255) << 8))
+detail_mask = deband_detail_mask(vid, brz=(int(0.045 * 255) << 8, int(0.06 * 255) << 8))
 
 deband_f3kdb = f3k_deband(vid)
 deband_placebo = placebo_deband(vid, **placebo_args)
