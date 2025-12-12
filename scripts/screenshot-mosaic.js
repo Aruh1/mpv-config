@@ -9,10 +9,10 @@
  *
  * Created by: noaione
  * License: MIT
- * Version: 2024.02.23.1
+ * Version: 2025.08.30.1
  */
 var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
+    __assign = Object.assign || function (t) {
         for (var s, i = 1, n = arguments.length; i < n; i++) {
             s = arguments[i];
             for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
@@ -34,34 +34,148 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 var scriptName = mp.get_script_name();
 var uoscMenuName = "".concat(scriptName, "_uosc_menu");
 var mosaicOptions = {
-    // Number of rows for screenshot
-    rows: 3,
-    // Number of columns for screenshot
-    columns: 4,
-    // Padding between screenshots (pixels)
-    padding: 10,
-    // Output format
     /**
+     * Number of rows for screenshot
+     *
+     * @type {number}
+     */
+    rows: 3,
+    /**
+     * Number of columns for screenshot
+     *
+     * @type {number}
+     */
+    columns: 4,
+    /**
+     * Padding between screenshots
+     *
+     * @type {number}
+     */
+    padding: 10,
+    /**
+     * Output format
+     *
      * @type {"png" | "jpg" | "webp"}
      */
     format: "png",
-    // Screenshot mode
     /**
+     * Override the screenshot format
+     *
+     * If empty, will use your default screenshot format via `screenshot-format` (or fallback to `jpg` if not set)
+     *
+     * @type {"png" | "jpg" | "jpeg" | "webp" | "jxl" | "avif" | ""}
+     */
+    screenshot_format: "",
+    /**
+     * Screenshot mode, default to video
+     *
+     * @see https://mpv.io/manual/stable/#command-interface-screenshot-%3Cflags%3E
      * @type {"video" | "subtitles" | "window"}
      */
     mode: "video",
-    // Append the "magick" command to the command line.
-    // Sometimes on windows, you cannot really use any magick command without prefixing
-    // "magick", if the command failed, you can set this to `yes` in your config.
+    /**
+     * Append the "magick" command to the command line.
+     *
+     * Sometimes on windows, you cannot really use any magick command without prefixing
+     * "magick", if the command failed, you can set this to `yes` in your config.
+     */
     append_magick: "no",
-    // Resize the final montage into the video height.
-    // I recommend keeping this enabled since if you have a 4k video, you don't want to
-    // have a montage that is basically 4k * whatever the number of screenshots you have.
-    // It would be way too big, so this will resize it back to the video height.
+    /**
+     * Resize the final montage into the video height.
+     *
+     * I recommend keeping this enabled since if you have a 4k video, you don't want to
+     * have a montage that is basically 4k * whatever the number of screenshots you have.
+     * It would be way too big, so this will resize it back to the video height.
+     */
     resize: "yes",
-    // The quality of the final montage image.
+    /**
+     * The quality of the final montage image.
+     *
+     * @type {number}
+     */
     quality: 90,
+    /**
+     * The path to the ImageMagick executable folders.
+     *
+     * @type {string}
+     */
+    executable_path: "",
+    /**
+     * The overriden family of the font to use.
+     *
+     * This is passed to magick convert -family option.
+     * If not set, it will use the default font.
+     *
+     * @type {string}
+     */
+    font_family: "",
+    /**
+     * Delay between each screenshot
+     *
+     * Useful if you use png screenshot mode and you keep getting duplicates.
+     * In miliseconds
+     *
+     * @type {number}
+     */
+    screenshot_delay: 0,
+    /**
+     * Jitter factor for the screenshots.
+     *
+     * This is in seconds, and will be added to the time step between each screenshot
+     * to create a more random effect in-between screenshots.
+     *
+     * Default to 0, which means no jitter.
+     *
+     * @type {number}
+     */
+    jitter: 0,
+    /**
+     * The start frame for the mosaic, multiplied to the video length.
+     *
+     * Default to 0.1
+     *
+     * @type {number}
+     */
+    minimum: 0.1,
+    /**
+     * The end frame for the mosaic, multiplied to the video length.
+     *
+     * Default to 0.9
+     *
+     * @type {number}
+     */
+    maximum: 0.9,
 };
+/**
+ * A list of supported image formats.
+ *
+ * Ref: https://mpv.io/manual/stable/#options-screenshot-format
+ *
+ * @type {string[]}
+ */
+var supportedFormat = [
+    "png",
+    "jpg",
+    "jpeg",
+    "webp",
+    "avif",
+    "jxl",
+];
+/**
+ * Replace all instances of a substring in a string, using simple while loop.
+ * Since there is no String.replaceAll in mpv scripting, or RegEx replace.
+ *
+ * @param text String to be replaced
+ * @param search Substring to be searched
+ * @param replace Replacement string
+ * @returns Replaced string
+ */
+function replMut(text, search, replace) {
+    while (text.indexOf(search) !== -1) {
+        text = text.replace(search, replace);
+    }
+    return text;
+}
 /**
  * @class Pathing
  */
@@ -136,7 +250,7 @@ var Pathing = /** @class */ (function () {
         }
         else {
             mp.msg.info("Creating directory (Windows): " + path);
-            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "mkdir ".concat(path)] });
+            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "mkdir", path] });
         }
     };
     Pathing.prototype.deleteFile = function (path) {
@@ -145,12 +259,17 @@ var Pathing = /** @class */ (function () {
             mp.command_native({ name: "subprocess", playback_only: false, args: ["rm", path] });
         }
         else {
-            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "del /F /Q ".concat(path)] });
+            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "del", "/F", "/Q", path] });
         }
     };
     Pathing.prototype.joinPath = function (basePath, path) {
         if (this._pathSep === null) {
             this._detectOs();
+        }
+        // Check if ends with \\ or /
+        var lastIndex = basePath.length - 1;
+        if (basePath.indexOf('\\') === lastIndex || basePath.indexOf('/') === lastIndex) {
+            basePath = basePath.slice(0, -1);
         }
         return basePath + this._pathSep + path;
     };
@@ -210,6 +329,31 @@ function getOutputDir() {
     var homeDir = mp.command_native(["expand-path", "~~home/"]);
     mp.msg.error("Could not get screenshot directory, trying to use mpv home directory: ".concat(homeDir));
     return paths.fixPath(homeDir);
+}
+/**
+ * Create magick prefix command.
+ * @param {string} [cmd] - The command to execute.
+ * @returns {string[]} - The prefixed command.
+ */
+function magick(cmd) {
+    var basePathing = [];
+    if (mosaicOptions.executable_path && mosaicOptions.executable_path.length > 0) {
+        var pathing = new Pathing();
+        if (mosaicOptions.append_magick.toLowerCase() === "yes" && cmd && cmd.toLowerCase() !== "magick") {
+            basePathing.push(pathing.fixPath(mp.utils.join_path(mosaicOptions.executable_path, "magick")));
+            cmd && basePathing.push(cmd);
+        }
+        else {
+            basePathing.push(pathing.fixPath(mp.utils.join_path(mosaicOptions.executable_path, cmd || "convert")));
+        }
+    }
+    else {
+        if (mosaicOptions.append_magick.toLowerCase() === "yes" && cmd && cmd.toLowerCase() !== "magick") {
+            basePathing.push("magick");
+        }
+        cmd && basePathing.push(cmd);
+    }
+    return basePathing;
 }
 /**
  * Explicitly check if the execution of magick command was successful.
@@ -311,12 +455,7 @@ function createOutputName(fileName, options) {
  * @returns {void} - Nothing
  */
 function runResize(imgOutput, videoHeight, options, callback) {
-    var resizeCmdsBase = [];
-    if (options.append_magick.toLowerCase() === "yes") {
-        resizeCmdsBase.push("magick");
-    }
-    var resizeCmds = __spreadArray(__spreadArray([], resizeCmdsBase, true), [
-        "convert",
+    var resizeCmds = __spreadArray(__spreadArray([], magick("magick"), true), [
         "".concat(imgOutput, ".montage.png"),
         "-resize",
         "x".concat(videoHeight),
@@ -352,17 +491,18 @@ function runResize(imgOutput, videoHeight, options, callback) {
  * @returns {void} - Nothing
  */
 function runAnnotation(fileName, videoWidth, videoHeight, duration, imgOutput, options, callback) {
-    // annotate text
-    var annotateCmdsBase = [];
-    if (options.append_magick.toLowerCase() === "yes") {
-        annotateCmdsBase.push("magick");
+    // check font family
+    var fontFamilies = [];
+    if (options.font_family && options.font_family.trim().length > 0) {
+        fontFamilies.push("-family", options.font_family.trim());
     }
-    var annotateCmds = __spreadArray(__spreadArray([], annotateCmdsBase, true), [
-        "convert",
+    // annotate text
+    var annotateCmds = __spreadArray(__spreadArray(__spreadArray(__spreadArray([], magick("magick"), true), [
         "-background",
         "white",
         "-pointsize",
-        "40",
+        "40"
+    ], false), fontFamilies, true), [
         "-gravity",
         "northwest",
         "label:mpv Media Player",
@@ -413,15 +553,10 @@ function runAnnotation(fileName, videoWidth, videoHeight, duration, imgOutput, o
  * @returns {void} - Nothing
  */
 function createMosaic(screenshots, videoWidth, videoHeight, fileName, duration, outputFile, options, callback) {
-    var imageMagick = [];
-    if (options.append_magick.toLowerCase() === "yes") {
-        imageMagick.push("magick");
-    }
-    var imageMagickArgs = [
-        "montage",
+    var imageMagickArgs = __spreadArray(__spreadArray([], magick("montage"), true), [
         "-geometry",
         "".concat(videoWidth, "x").concat(videoHeight, "+").concat(options.padding, "+").concat(options.padding),
-    ];
+    ], false);
     for (var i = 0; i < screenshots.length; i++) {
         imageMagickArgs.push(screenshots[i]);
     }
@@ -431,7 +566,7 @@ function createMosaic(screenshots, videoWidth, videoHeight, fileName, duration, 
     mp.command_native_async({
         name: "subprocess",
         playback_only: false,
-        args: imageMagick.concat(imageMagickArgs),
+        args: imageMagickArgs,
         capture_stderr: true,
         capture_stdout: true,
     }, function (_, result, __) {
@@ -462,47 +597,83 @@ function createMosaic(screenshots, videoWidth, videoHeight, fileName, duration, 
  * @param {MosaicOptions} options - The options to use.
  * @param {CallbackChainScreenshot} callback - The callback chain that will be called.
  */
-function screenshotCycles(startTime, timeStep, screenshotDir, options, callback) {
+function screenshotCycles(startTime, timeStep, maximumTime, screenshotDir, ssFormat, options, callback) {
     var rows = options.rows, columns = options.columns;
     var screenshots = [];
     var totalImages = rows * columns;
+    function calculateSeekTime(counter) {
+        var seekCalculation = (startTime + (timeStep * (counter - 1)));
+        if (options.jitter && options.jitter > 0) {
+            var jitter = Math.round(Math.random() * options.jitter);
+            var direction = Math.random() < 0.5 ? -1 : 1; // Randomly choose to add or subtract jitter
+            return Math.max(Math.min(seekCalculation + (direction * jitter), maximumTime), 0); // Ensure the time is within bounds
+        }
+        return seekCalculation;
+    }
     // callback hell...
     function callbackScreenshot(counter, screenshots) {
-        mp.command_native_async(["seek", (startTime + (timeStep * (counter - 1))), "absolute", "exact"], function (success, _, error) {
+        mp.command_native_async(["seek", calculateSeekTime(counter), "absolute", "exact"], function (success, _, error) {
             if (!success) {
                 callback(false, error, []);
                 return;
             }
-            var imagePath = mp.utils.join_path(screenshotDir, "temp_screenshot-".concat(counter, ".png"));
-            mp.command_native_async(["screenshot-to-file", imagePath, options.mode], function (success, _, error) {
-                if (!success) {
-                    callback(false, error, screenshots);
-                    return;
-                }
-                // if counter is equal to totalImages, we are done
-                if (counter >= totalImages) {
-                    callback(true, undefined, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
-                    return;
-                }
-                // if not, loop again.
-                callbackScreenshot(counter + 1, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
-            });
+            var imagePath = mp.utils.join_path(screenshotDir, "temp_screenshot-".concat(counter, ".").concat(ssFormat));
+            if (options.screenshot_delay > 0) {
+                mp.msg.debug("Delaying screenshot ".concat(counter, " by ").concat(options.screenshot_delay, "ms"));
+                setTimeout(function () {
+                    mp.command_native_async(["screenshot-to-file", imagePath, options.mode], function (success, _, error) {
+                        if (!success) {
+                            callback(false, error, screenshots);
+                            return;
+                        }
+                        // if counter is equal to totalImages, we are done
+                        if (counter >= totalImages) {
+                            callback(true, undefined, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
+                            return;
+                        }
+                        // if not, loop again.
+                        setTimeout(function () {
+                            callbackScreenshot(counter + 1, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
+                        }, options.screenshot_delay);
+                    });
+                }, options.screenshot_delay);
+            }
+            else {
+                mp.command_native_async(["screenshot-to-file", imagePath, options.mode], function (success, _, error) {
+                    if (!success) {
+                        callback(false, error, screenshots);
+                        return;
+                    }
+                    // if counter is equal to totalImages, we are done
+                    if (counter >= totalImages) {
+                        callback(true, undefined, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
+                        return;
+                    }
+                    // if not, loop again.
+                    callbackScreenshot(counter + 1, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
+                });
+            }
         });
     }
-    callbackScreenshot(1, screenshots);
+    if (options.screenshot_delay > 0) {
+        setTimeout(function () {
+            callbackScreenshot(1, screenshots);
+        }, options.screenshot_delay);
+    }
+    else {
+        callbackScreenshot(1, screenshots);
+    }
 }
 /**
  * Check if the montage command is available. (also check Magick)
  * @returns {boolean} - True if the montage command is available, false otherwise.
  */
 function checkMagick() {
-    var cmds = [];
-    if (mosaicOptions.append_magick.toLowerCase() === "yes") {
-        cmds.push("magick");
-    }
-    cmds.push("montage");
-    cmds.push("--version");
-    var res = mp.command_native({ name: "subprocess", playback_only: false, args: cmds });
+    var montageCmd = __spreadArray(__spreadArray([], magick("montage"), true), [
+        "--version",
+    ], false);
+    mp.msg.info("Checking ImageMagick availability...", JSON.stringify(montageCmd));
+    var res = mp.command_native({ name: "subprocess", playback_only: false, args: montageCmd });
     return res.status === 0;
 }
 /**
@@ -530,6 +701,22 @@ function verifyVariables(options) {
     }
     return true;
 }
+function getScreenshotFormat(options) {
+    var ssFormat = mp.get_property("screenshot-format");
+    var fallbackFormat = ssFormat ? ssFormat : "jpg";
+    if (supportedFormat.indexOf(fallbackFormat) === -1) {
+        fallbackFormat = "jpg";
+    }
+    if (options.screenshot_format) {
+        if (supportedFormat.indexOf(options.screenshot_format) !== -1) {
+            mp.msg.info("Using preferred screenshot format ".concat(options.screenshot_format));
+            return options.screenshot_format;
+        }
+        mp.msg.warn("Screenshot format ".concat(options.screenshot_format, " is not supported, using ").concat(supportedFormat, " instead"));
+    }
+    mp.msg.info("Using screenshot format ".concat(fallbackFormat));
+    return fallbackFormat;
+}
 /**
  * Send a formatted OSD message that support ASS tags.
  * @param {string} message - The message to send
@@ -554,6 +741,7 @@ function sendOSD(message, duration) {
  * @returns {void} - Nothing
  */
 function entrypoint(options) {
+    var _a, _b;
     // create a mosaic of screenshots
     var paths = new Pathing();
     if (!verifyVariables(options)) {
@@ -591,6 +779,7 @@ function entrypoint(options) {
         mp.osd_message("Failed to get time position");
         return;
     }
+    mp.msg.info(mp.module_paths);
     mp.msg.info("Running Mosaic Tools with the following options:");
     mp.msg.info("  Rows: " + options.rows);
     mp.msg.info("  Columns: " + options.columns);
@@ -599,10 +788,15 @@ function entrypoint(options) {
     mp.msg.info("  Video Length: " + videoLength);
     mp.msg.info("  Video Width: " + videoWidth);
     mp.msg.info("  Video Height: " + videoHeight);
+    var outputDir = getOutputDir();
+    mp.msg.info("  Output Directory: " + outputDir);
     var videoDuration = formatDurationToHHMMSS(videoLength);
+    var ssFormat = getScreenshotFormat(options);
+    var minFrame = (_a = options.minimum) !== null && _a !== void 0 ? _a : 0.1;
+    var maxFrame = (_b = options.maximum) !== null && _b !== void 0 ? _b : 0.9;
     // we want to start at 10% of the video length and end at 90%
-    var startTime = videoLength * 0.1;
-    var endTime = videoLength * 0.9;
+    var startTime = videoLength * minFrame;
+    var endTime = videoLength * maxFrame;
     var timeStep = (endTime - startTime) / (imageCount - 1);
     mp.osd_message("Creating ".concat(options.columns, "x").concat(options.rows, " mosaic of ").concat(imageCount, " screenshots..."), 2);
     mp.msg.info("Creating ".concat(options.columns, "x").concat(options.rows, " mosaic of ").concat(imageCount, " screenshots..."));
@@ -612,7 +806,7 @@ function entrypoint(options) {
     paths.createDirectory(screenshotDir);
     mp.set_property("pause", "yes");
     // Take screenshot and put it in callback to createMosaic
-    screenshotCycles(startTime, timeStep, screenshotDir, options, function (success, error, screenshots) {
+    screenshotCycles(startTime, timeStep, videoLength, screenshotDir, ssFormat, options, function (success, error, screenshots) {
         mp.set_property_number("time-pos", originalTimePos);
         mp.set_property("pause", "no");
         if (!success) {
@@ -625,7 +819,6 @@ function entrypoint(options) {
             mp.msg.info("Creating mosaic for ".concat(options.columns, "x").concat(options.rows, " images..."));
             mp.osd_message("Creating mosaic...", 2);
             var fileName = mp.get_property("filename");
-            var outputDir = getOutputDir();
             var imgOutput_1 = paths.fixPath(mp.utils.join_path(outputDir, "".concat(createOutputName(fileName, options), ".").concat(options.format)));
             createMosaic(screenshots, videoWidth, videoHeight, fileName, videoDuration, imgOutput_1, options, function (success, error) {
                 if (success) {
