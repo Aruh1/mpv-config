@@ -9,7 +9,7 @@
  *
  * Created by: noaione
  * License: MIT
- * Version: 2025.08.30.1
+ * Version: 2026.05.22.1
  */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function (t) {
@@ -109,15 +109,6 @@ var mosaicOptions = {
      * @type {string}
      */
     font_family: "",
-    /**
-     * Delay between each screenshot
-     *
-     * Useful if you use png screenshot mode and you keep getting duplicates.
-     * In miliseconds
-     *
-     * @type {number}
-     */
-    screenshot_delay: 0,
     /**
      * Jitter factor for the screenshots.
      *
@@ -246,20 +237,20 @@ var Pathing = /** @class */ (function () {
     Pathing.prototype.createDirectory = function (path) {
         if (this.isUnix()) {
             mp.msg.info("Creating directory (Unix): " + path);
-            mp.command_native({ name: "subprocess", playback_only: false, args: ["mkdir", "-p", path] });
+            mp.command_native({ name: "subprocess", playback_only: false, args: ["mkdir", "-p", "".concat(path, " ")] });
         }
         else {
             mp.msg.info("Creating directory (Windows): " + path);
-            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "mkdir", path] });
+            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "mkdir", "".concat(path, " ")] });
         }
     };
     Pathing.prototype.deleteFile = function (path) {
         mp.msg.info("Deleting file: " + path);
         if (this.isUnix()) {
-            mp.command_native({ name: "subprocess", playback_only: false, args: ["rm", path] });
+            mp.command_native({ name: "subprocess", playback_only: false, args: ["rm", "".concat(path, " ")] });
         }
         else {
-            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "del", "/F", "/Q", path] });
+            mp.command_native({ name: "subprocess", playback_only: false, args: ["cmd", "/C", "del", "/F", "/Q", "".concat(path, " ")] });
         }
     };
     Pathing.prototype.joinPath = function (basePath, path) {
@@ -434,9 +425,9 @@ function formatDurationToHHMMSS(seconds) {
  * @returns {string} - The new filename
  */
 function createOutputName(fileName, options) {
-    var finalName = fileName.replace(" ", "_");
-    var ColRow = "".concat(options.columns, "x").concat(options.rows);
-    var mosaicName = ".mosaic".concat(ColRow);
+    var finalName = fileName.replace(/ /g, "_");
+    var colRows = "".concat(options.columns, "x").concat(options.rows);
+    var mosaicName = ".mosaic".concat(colRows);
     // Max count is 256 characters, with safety margin to 224
     var testCount = finalName.length + mosaicName.length;
     if (testCount > 224) {
@@ -505,19 +496,27 @@ function runAnnotation(fileName, videoWidth, videoHeight, duration, imgOutput, o
     ], false), fontFamilies, true), [
         "-gravity",
         "northwest",
+        "-weight",
+        "bold",
         "label:mpv Media Player",
         // Add top margin
+        "-size",
+        "0x0",
         "-splice",
         "0x10",
         "-pointsize",
         "16",
         "-gravity",
         "northwest",
+        "-weight",
+        "normal",
         "label:File Name: " + fileName + "",
         "label:File Size: " + humanizeBytes(mp.get_property_number("file-size")) + "",
         "label:Resolution: " + videoWidth + "x" + videoHeight + "",
         "label:Duration: " + duration + "",
         // Add left margin
+        "-gravity",
+        "northwest",
         "-splice",
         "10x0",
         "".concat(imgOutput, ".montage.png"),
@@ -554,6 +553,8 @@ function runAnnotation(fileName, videoWidth, videoHeight, duration, imgOutput, o
  */
 function createMosaic(screenshots, videoWidth, videoHeight, fileName, duration, outputFile, options, callback) {
     var imageMagickArgs = __spreadArray(__spreadArray([], magick("montage"), true), [
+        "-tile",
+        "".concat(options.columns, "x").concat(options.rows),
         "-geometry",
         "".concat(videoWidth, "x").concat(videoHeight, "+").concat(options.padding, "+").concat(options.padding),
     ], false);
@@ -618,9 +619,12 @@ function screenshotCycles(startTime, timeStep, maximumTime, screenshotDir, ssFor
                 return;
             }
             var imagePath = mp.utils.join_path(screenshotDir, "temp_screenshot-".concat(counter, ".").concat(ssFormat));
-            if (options.screenshot_delay > 0) {
-                mp.msg.debug("Delaying screenshot ".concat(counter, " by ").concat(options.screenshot_delay, "ms"));
-                setTimeout(function () {
+            function waitForSeekAndScreenshot() {
+                var isSeeking = mp.get_property_bool('seeking', false);
+                if (isSeeking) {
+                    setTimeout(waitForSeekAndScreenshot, 50);
+                }
+                else {
                     mp.command_native_async(["screenshot-to-file", imagePath, options.mode], function (success, _, error) {
                         if (!success) {
                             callback(false, error, screenshots);
@@ -632,37 +636,14 @@ function screenshotCycles(startTime, timeStep, maximumTime, screenshotDir, ssFor
                             return;
                         }
                         // if not, loop again.
-                        setTimeout(function () {
-                            callbackScreenshot(counter + 1, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
-                        }, options.screenshot_delay);
+                        callbackScreenshot(counter + 1, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
                     });
-                }, options.screenshot_delay);
+                }
             }
-            else {
-                mp.command_native_async(["screenshot-to-file", imagePath, options.mode], function (success, _, error) {
-                    if (!success) {
-                        callback(false, error, screenshots);
-                        return;
-                    }
-                    // if counter is equal to totalImages, we are done
-                    if (counter >= totalImages) {
-                        callback(true, undefined, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
-                        return;
-                    }
-                    // if not, loop again.
-                    callbackScreenshot(counter + 1, __spreadArray(__spreadArray([], screenshots, true), [imagePath], false));
-                });
-            }
+            waitForSeekAndScreenshot();
         });
     }
-    if (options.screenshot_delay > 0) {
-        setTimeout(function () {
-            callbackScreenshot(1, screenshots);
-        }, options.screenshot_delay);
-    }
-    else {
-        callbackScreenshot(1, screenshots);
-    }
+    callbackScreenshot(1, screenshots);
 }
 /**
  * Check if the montage command is available. (also check Magick)
@@ -794,7 +775,7 @@ function entrypoint(options) {
     var ssFormat = getScreenshotFormat(options);
     var minFrame = (_a = options.minimum) !== null && _a !== void 0 ? _a : 0.1;
     var maxFrame = (_b = options.maximum) !== null && _b !== void 0 ? _b : 0.9;
-    // we want to start at 10% of the video length and end at 90%
+    // we want to start at at the set minimum and end at the set maximum
     var startTime = videoLength * minFrame;
     var endTime = videoLength * maxFrame;
     var timeStep = (endTime - startTime) / (imageCount - 1);
